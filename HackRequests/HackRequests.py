@@ -108,11 +108,11 @@ class hackRequests(object):
     可以通过http或者httpraw来访问网络
     '''
 
-    def __init__(self, conpool=None):
+    def __init__(self, conpool=None, timeout=17):   # * 2022-12-23 Clincat, customize timeout
         self.lock = threading.Lock()
 
         if conpool is None:
-            self.httpcon = httpcon(timeout=17)
+            self.httpcon = httpcon(timeout)         # * 2022-12-23 Clincat, customize timeout
         else:
             self.httpcon = conpool
 
@@ -149,7 +149,6 @@ class hackRequests(object):
         proxy = kwargs.get("proxy", None)
         real_host = kwargs.get("real_host", None)
         ssl = kwargs.get("ssl", False)
-        location = kwargs.get("location", True)
 
         scheme = 'http'
         port = 80
@@ -202,7 +201,9 @@ class hackRequests(object):
                 v = ""
             headers[k] = v
             index += 1
-        headers["Connection"] = "close"
+        if not headers["Connection"]:
+            headers["Connection"] = "close"
+            
         if len(raws) < index + 1:
             body = ''
         else:
@@ -238,7 +239,11 @@ class hackRequests(object):
         except KeyboardInterrupt:
             raise HackError("user exit")
         finally:
-            conn.close()
+            try:
+                rep.read_copy = rep.read()                  # * 2022-11-06 Clincat, copy rep.read()
+                conn.close()
+            except:
+                pass
         log["response"] = "HTTP/%.1f %d %s" % (
             rep.version * 0.1, rep.status,
             rep.reason) + '\r\n' + str(rep.msg)
@@ -246,13 +251,6 @@ class hackRequests(object):
             _url = "{scheme}://{host}{path}".format(scheme=scheme, host=host, path=path)
         else:
             _url = "{scheme}://{host}{path}".format(scheme=scheme, host=host + ":" + port, path=path)
-        
-        redirect = rep.msg.get('location', None)  # handle 301/302
-        if redirect and location:
-            if not redirect.startswith('http'):
-                redirect = parse.urljoin(_url, redirect)
-            return self.http(redirect, post=None, method=method, headers=headers, location=True, locationcount=1)
-
         return response(rep, _url, log, )
 
     def http(self, url, **kwargs):
@@ -305,18 +303,13 @@ class hackRequests(object):
                 post = parse.urlencode(post)
             except:
                 pass
-            if "Content-Type" not in headers:
-                tmp_headers["Content-Type"] = kwargs.get(
-                    "Content-type", "application/json")
-            if 'Accept' not in headers:
-                tmp_headers["Accept"] = tmp_headers.get("Accept", "*/*")
-        if 'Accept-Encoding' not in headers:
-            tmp_headers['Accept-Encoding'] = tmp_headers.get("Accept-Encoding", "gzip, deflate")
-        if 'Connection' not in headers:
-            tmp_headers['Connection'] = 'close'
-        if 'User-Agent' not in headers:
-            tmp_headers['User-Agent'] = tmp_headers['User-Agent'] if tmp_headers.get(
-                'User-Agent') else 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.71 Safari/537.36'
+            tmp_headers["Content-Type"] = kwargs.get(
+                "Content-type", "application/x-www-form-urlencoded")
+            tmp_headers["Accept"] = tmp_headers.get("Accept", "*/*")
+        tmp_headers['Accept-Encoding'] = tmp_headers.get("Accept-Encoding", "gzip, deflate")
+        tmp_headers['Connection'] = 'close'
+        tmp_headers['User-Agent'] = tmp_headers['User-Agent'] if tmp_headers.get(
+            'User-Agent') else 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.71 Safari/537.36'
 
         try:
             conn.request(method, path, post, tmp_headers)
@@ -329,7 +322,11 @@ class hackRequests(object):
         except KeyboardInterrupt:
             raise HackError("user exit")
         finally:
-            conn.close()
+            try:
+                rep.read_copy = rep.read()                  # * 2022-11-06 Clincat, copy rep.read()
+                conn.close()
+            except:
+                pass
 
         if post:
             log["request"] += "\r\n\r\n" + post
@@ -381,7 +378,7 @@ class response(object):
             self.cookies = {}
 
         self.headers = _header_dict
-        self.header = str(self.rep.msg)  # response header
+        self.header = self.rep.msg  # response header
         self.log = log
         charset = self.rep.msg.get('content-type', 'utf-8')
         try:
@@ -394,7 +391,8 @@ class response(object):
             return self._content
         encode = self.rep.msg.get('content-encoding', None)
         try:
-            body = self.rep.read()
+            # body = self.rep.read()
+            body = self.rep.read_copy           # * 2022-11-06 Clincat, use read_copy
         except socket.timeout:
             body = b''
         if encode == 'gzip':
@@ -451,7 +449,6 @@ class response(object):
                 continue
         return cookie_dict
 
-
 class threadpool:
 
     def __init__(self, threadnum, callback, timeout=10):
@@ -477,6 +474,7 @@ class threadpool:
     def run(self):
         th = []
         for i in range(self.thread_nums):
+            # t = threading.Thread(target=self.scan)
             t = threading.Thread(target=self.scan)
             t.setDaemon(True)
             t.start()
@@ -491,7 +489,7 @@ class threadpool:
                     break
         except KeyboardInterrupt:
             exit("User Quit")
-
+        
     def http(self, url, **kwargs):
         func = self.hack.http
         self.queue.put({"func": func, "url": url, "kw": kwargs})
@@ -500,6 +498,9 @@ class threadpool:
         func = self.hack.httpraw
         self.queue.put({"func": func, "raw": raw, "ssl": ssl,
                         "proxy": proxy, "location": location})
+
+    def httpfunc(self, func, url, **kwargs):                        # * 2022-12-23 Clincat, httpfunc
+        self.queue.put({"func": func, "url": url, "kw": kwargs})
 
     def scan(self):
         while 1:

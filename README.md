@@ -1,3 +1,106 @@
+# 关于本项目
+原项目地址：https://github.com/boy-hack/hack-requests
+作者貌似不维护了，所以自己fork并进行了修改，修复了一个BUG，一个更改，添加了两个功能
+有问题可以提交issues或邮箱kasterborous@qq.com找我
+
+## BUG
+在调用.close()关闭连接时，不知道出现了什么错误，会导致响应包内容丢失，我在调用.close()之前先将响应包内容复制并保存，以防止内容丢失，后续使用这个复制出来的内容即可
+
+## 更改
+<strong>旧：</strong>httpraw中的Connection固定值为close
+<strong>新：</strong>Connection的值默认为close，如果用户自定义了Connection，则使用自定义的值
+
+## 新功能1
+<strong>旧：</strong>单个http请求不支持自定义timeout超时，固定为17秒
+<strong>新：</strong>单个http请求支持自定义timeout超时，如果指定timeout则使用指定的值，如果不指定的话默认为17秒
+
+```python
+import HackRequests
+
+hack = HackRequests.hackRequests(timeout=10)
+
+res = hack.http('https://www.baidu.com')
+print(res.status_code)
+```
+
+以上代码输出结果：200
+
+```python
+import HackRequests
+
+hack = HackRequests.hackRequests(timeout=0.01)
+
+res = hack.http('https://www.baidu.com')
+print(res.status_code)
+```
+
+以上代码报错，socket连接超时：socket connect timeout
+
+## 新功能2
+<strong>旧：</strong>线程池threadpool支持http和httpraw，只能添加url或raw进行单一请求，不能进行判断等操作
+<strong>新：</strong>线程池threadpool支持http、httpraw和httpfunc，可以添加url、raw或自定义函数，你可以将POC的流程写入函数（循环、请求、判断、return等），然后通过httpfunc将POC函数添加到线程池当中，最后通过callback回调函数获取return的值
+
+```python
+import HackRequests
+
+results = []
+
+def _callback(result):
+    results.append(result)
+
+def func(url):
+    return url
+
+threadpool = HackRequests.threadpool(10, callback=_callback, timeout=10)
+for i in range(5):
+    threadpool.httpfunc(func, 'https://www.baidu.com')
+
+threadpool.run()
+
+print(results)
+```
+
+以上代码
+* 首先定义一个列表results，用于存储return的结果
+* 定义一个回调函数_callback，函数名称可以自定义，最少接收一个参数，该参数是线程池中 单个函数的返回值，在函数中 将单个返回值添加到results中
+* 定义一个函数func，函数名称可以自定义，这个函数是你实际定义的函数，最少接收一个参数，该参数是url，在函数中将url通过return返回
+* 新建一个线程池threadpool，第一个参数是线程，第二个参数是回调函数，第三个参数是超时时间/秒
+* 通过for循环和httpfunc方法，往线程池里面添加5个函数，第一个参数是函数名称（注意没有括号），第二个参数是url
+* 通过run()方法运行线程池
+* 最后打印results中的内容，输出结果为：
+['https://www.baidu.com',
+'https://www.baidu.com',
+'https://www.baidu.com',
+'https://www.baidu.com',
+'https://www.baidu.com']
+
+```python
+# 一个简单的请求演示
+import HackRequests
+
+results = []
+timeout = 10
+
+def _callback(result):
+    results.append(result)
+
+def POC(url, timeout):
+    hack = HackRequests.hackRequests(timeout=timeout)
+    res = hack.http(url)
+    
+    return res.status_code
+
+threadpool = HackRequests.threadpool(10, callback=_callback, timeout=timeout)
+for i in range(5):
+    threadpool.httpfunc(POC, 'https://www.baidu.com', timeout=timeout)
+
+threadpool.run()
+
+print(results)
+```
+
+以上代码输出结果：[200, 200, 200, 200, 200]
+
 # hack-requests
 HackRequests 是基于`Python3.x`的一个给黑客们使用的http底层网络库。如果你需要一个不那么臃肿而且像requests一样优雅的设计，并且提供底层请求包/返回包原文来方便你进行下一步分析，如果你使用Burp Suite，可以将原始报文直接复制重放，对于大量的HTTP请求，hack-requests线程池也能帮你实现最快速的响应。
 
