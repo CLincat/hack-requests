@@ -1,17 +1,17 @@
 # 关于本项目
-原项目地址：https://github.com/boy-hack/hack-requests
-作者貌似不维护了，所以自己fork并进行了修改，修复了一个BUG，一个更改，添加了两个功能
+原项目地址：https://github.com/boy-hack/hack-requests<br/>
+作者貌似不维护了，所以自己fork并进行了修改，修复了一个BUG，一个更改，添加了两个功能<br/>
 有问题可以提交issues或邮箱kasterborous@qq.com找我
 
 ## BUG
 在调用.close()关闭连接时，不知道出现了什么错误，会导致响应包内容丢失，我在调用.close()之前先将响应包内容复制并保存，以防止内容丢失，后续使用这个复制出来的内容即可
 
 ## 更改
-<strong>旧：</strong>httpraw中的Connection固定值为close
+<strong>旧：</strong>httpraw中的Connection固定值为close<br/>
 <strong>新：</strong>Connection的值默认为close，如果用户自定义了Connection，则使用自定义的值
 
 ## 新功能1
-<strong>旧：</strong>单个http请求不支持自定义timeout超时，固定为17秒
+<strong>旧：</strong>单个http请求不支持自定义timeout超时，固定为17秒<br/>
 <strong>新：</strong>单个http请求支持自定义timeout超时，如果指定timeout则使用指定的值，如果不指定的话默认为17秒
 
 ```python
@@ -37,7 +37,7 @@ print(res.status_code)
 以上代码报错，socket连接超时：socket connect timeout
 
 ## 新功能2
-<strong>旧：</strong>线程池threadpool支持http和httpraw，只能添加url或raw进行单一请求，不能进行判断等操作
+<strong>旧：</strong>线程池threadpool支持http和httpraw，只能添加url或raw进行单一请求，不能进行判断等操作<br/>
 <strong>新：</strong>线程池threadpool支持http、httpraw和httpfunc，可以添加url、raw或自定义函数，你可以将POC的流程写入函数（循环、请求、判断、return等），然后通过httpfunc将POC函数添加到线程池当中，最后通过callback回调函数获取return的值
 
 ```python
